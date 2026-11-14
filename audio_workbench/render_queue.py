@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 
-from . import arrangement, processing, rendering, waveio
+from . import arrangement, formats, rendering, waveio
 
 
 def _identifier(value):
@@ -179,7 +179,7 @@ class RenderQueue:
             audio = rendering.render_manifest(record['manifest'], self.assets.content, cancelled, progress)
             if cancelled():
                 raise rendering.RenderCancelled('render interrupted')
-            properties = processing.inspect(audio)
+            properties = formats.describe(audio)
             data = waveio.encode(audio)
             digest = hashlib.sha256(data).hexdigest()
             with temp.open('wb') as stream:

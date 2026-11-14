@@ -1,6 +1,6 @@
 import base64
 import binascii
-from . import processing, waveio
+from . import formats, processing, waveio
 
 
 def audio_from(value):
@@ -14,15 +14,17 @@ def audio_from(value):
 
 
 def output(audio):
+    # One description path for both clip and mix: the encoded WAV and the
+    # reported properties are derived from the same Audio object.
     return {'audio': base64.b64encode(waveio.encode(audio)).decode('ascii'),
-            'properties': processing.inspect(audio)}
+            'properties': formats.describe(audio)}
 
 
 def execute(path, body):
     if not isinstance(body, dict):
         raise ValueError('request must be a JSON object')
     if path == '/inspect':
-        return processing.inspect(audio_from(body.get('audio')))
+        return formats.describe(audio_from(body.get('audio')))
     if path == '/clip':
         return output(processing.clip(audio_from(body.get('audio')), body.get('start'),
                                       body.get('end'), body.get('gain', 1)))
@@ -37,7 +39,8 @@ def execute(path, body):
         if target is not None:
             if not isinstance(target, dict):
                 raise ValueError('format must be an object')
-            decoded = [(processing.conform(audio, target.get('sample_rate'), target.get('channels')), offset, gain)
+            rate, channels = target.get('sample_rate'), target.get('channels')
+            decoded = [(formats.conform(audio, rate, channels), offset, gain)
                        for audio, offset, gain in decoded]
         return output(processing.mix(decoded))
     raise LookupError('unknown endpoint')

@@ -1,6 +1,19 @@
+"""Sample-level arithmetic for clipping and mixing.
+
+Format validation, conversion and result descriptions live in
+:mod:`audio_workbench.formats`; this module keeps only numeric parameter
+checks, gain application, interval slicing and saturated summation. The
+legacy public names (``Audio``, ``inspect``, ``conform``, ``saturate``) are
+re-exported for existing callers and tests.
+"""
+
 import array
 import math
-from .waveio import Audio
+
+from .formats import MAX_SECONDS, Audio, conform, saturate
+from . import formats
+
+__all__ = ['number', 'saturate', 'inspect', 'clip', 'conform', 'mix', 'Audio']
 
 
 def number(value, name, low, high):
@@ -9,19 +22,14 @@ def number(value, name, low, high):
     return value
 
 
-def saturate(value):
-    return max(-32768, min(32767, round(value)))
-
-
 def inspect(audio):
-    return {'sample_rate': audio.rate, 'channels': audio.channels, 'frames': audio.frames,
-            'duration_seconds': audio.frames / audio.rate,
-            'peak': max(abs(s) for s in audio.samples) / 32768}
+    """Legacy entry point; format facts are owned by formats.describe."""
+    return formats.describe(audio)
 
 
 def clip(audio, start, end, gain):
-    start = number(start, 'start', 0, 30)
-    end = number(end, 'end', 0, 30)
+    start = number(start, 'start', 0, MAX_SECONDS)
+    end = number(end, 'end', 0, MAX_SECONDS)
     gain = number(gain, 'gain', 0, 4)
     first, last = round(start * audio.rate), round(end * audio.rate)
     if first >= last or last > audio.frames:
@@ -30,41 +38,15 @@ def clip(audio, start, end, gain):
     return Audio(audio.rate, audio.channels, array.array('h', samples))
 
 
-def conform(audio, rate, channels):
-    if type(rate) is not int or not 8000 <= rate <= 48000 or rate < audio.rate:
-        raise ValueError('sample rate must be an integer from the source rate through 48000')
-    if type(channels) is not int or channels not in (1, 2):
-        raise ValueError('channels must be 1 or 2')
-    frames = round(audio.frames * rate / audio.rate)
-    samples = array.array('h')
-    for frame in range(frames):
-        position = frame * audio.rate / rate
-        first = min(int(position), audio.frames - 1)
-        second = min(first + 1, audio.frames - 1)
-        fraction = position - first
-        values = []
-        for channel in range(audio.channels):
-            left = audio.samples[first * audio.channels + channel]
-            right = audio.samples[second * audio.channels + channel]
-            values.append(left + (right - left) * fraction)
-        if channels == 1:
-            samples.append(saturate(sum(values) / len(values)))
-        elif audio.channels == 1:
-            samples.extend((saturate(values[0]), saturate(values[0])))
-        else:
-            samples.extend(saturate(value) for value in values)
-    return Audio(rate, channels, samples)
-
-
 def mix(tracks):
     reference = tracks[0][0]
     for audio, offset, gain in tracks:
-        if (audio.rate, audio.channels) != (reference.rate, reference.channels):
+        if not formats.same_format(audio, reference):
             raise ValueError('track formats must match')
-        number(offset, 'offset', 0, 30)
+        number(offset, 'offset', 0, MAX_SECONDS)
         number(gain, 'gain', 0, 4)
     length = max(round(offset * reference.rate) + audio.frames for audio, offset, _ in tracks)
-    if length > reference.rate * 30:
+    if length > reference.rate * MAX_SECONDS:
         raise ValueError('mixed audio exceeds 30 seconds')
     sums = [0.0] * (length * reference.channels)
     for audio, offset, gain in tracks:

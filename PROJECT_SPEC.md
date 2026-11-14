@@ -14,7 +14,7 @@
 5. 时间线合成：提交多个音视频片段和裁剪区间，统一画幅、帧率、采样率及声道，处理短片段填充，再合成为单个结果。
 
 ## 模块与接口
-`server` 负责 HTTP 边界；`service` 验证请求并组织操作；`waveio` 编解码；`processing` 完成样本计算；`jobs` 负责 SQLite 状态、线程和 FFmpeg 子进程。接口为 `POST /inspect`、`POST /clip`、`POST /mix`、`POST /jobs`、`GET /jobs/{id}`、`GET /jobs/{id}/result`、`POST /jobs/{id}/cancel`，请求和响应使用 JSON 与 base64。每个数据目录只能由一个服务进程持有。
+`server` 负责 HTTP 边界；`service` 验证请求并组织操作；`formats` 统一持有素材格式的判定、采样率/声道转换与结果属性描述，使裁剪、混音和编排渲染共用同一套格式事实；`waveio` 负责 WAV 字节编解码；`processing` 完成裁剪与混音的样本计算；`jobs` 负责 SQLite 状态、线程和 FFmpeg 子进程。接口为 `POST /inspect`、`POST /clip`、`POST /mix`、`POST /jobs`、`GET /jobs/{id}`、`GET /jobs/{id}/result`、`POST /jobs/{id}/cancel`，请求和响应使用 JSON 与 base64。每个数据目录只能由一个服务进程持有。
 
 ## 验证
 运行编译检查和每条工作流的真实 HTTP 冒烟检查，覆盖成功结果及输入拒绝。测试套件有意延后，由后续工程任务添加自动化单元测试和更广泛的边界测试。

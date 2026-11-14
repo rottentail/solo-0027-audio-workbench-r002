@@ -42,7 +42,7 @@ python3 -m audio_workbench.smoke mix
 python3 -m audio_workbench.job_smoke
 ```
 
-`server.py` 负责 HTTP，`service.py` 编排和校验，`waveio.py` 读写音频，`processing.py` 处理样本，`jobs.py` 管理数据库和执行器；两个 smoke 模块经真实 HTTP 路径执行有限检查。新增编排业务由 unittest 套件验证；旧媒体路径继续使用真实 HTTP smoke。
+`server.py` 负责 HTTP，`service.py` 编排和校验，`formats.py` 统一持有 PCM 素材格式的判定、升采样/声道转换和结果属性描述，`waveio.py` 只做 WAV 字节编解码，`processing.py` 只做裁剪与混音的样本运算，`jobs.py` 管理数据库和执行器；两个 smoke 模块经真实 HTTP 路径执行有限检查。新增编排业务由 unittest 套件验证；旧媒体路径继续使用真实 HTTP smoke。
 
 不提供身份认证、媒体探测接口、自动重试、进度推送或分布式执行。
 

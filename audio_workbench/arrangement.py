@@ -3,9 +3,11 @@
 import math
 import re
 
+from .formats import CHANNEL_CHOICES, MAX_RATE, MAX_SECONDS as MAX_MATERIAL_SECONDS, MIN_RATE
+
 
 MAX_CLIPS = 32
-MAX_SECONDS = 60
+MAX_SECONDS = 60  # arrangement timeline limit; materials themselves cap at formats.MAX_SECONDS
 
 
 def _object(value, name):
@@ -36,8 +38,8 @@ def _identifier(value, name):
 
 
 def _format(rate, channels):
-    _integer(rate, 'sample_rate', 8000, 48000)
-    _integer(channels, 'channels', 1, 2)
+    _integer(rate, 'sample_rate', MIN_RATE, MAX_RATE)
+    _integer(channels, 'channels', min(CHANNEL_CHOICES), max(CHANNEL_CHOICES))
 
 
 def _source(metadata):
@@ -45,7 +47,7 @@ def _source(metadata):
     rate = metadata.get('sample_rate')
     channels = metadata.get('channels')
     _format(rate, channels)
-    frames = _integer(metadata.get('frames'), 'asset frames', 1, rate * 30)
+    frames = _integer(metadata.get('frames'), 'asset frames', 1, rate * MAX_MATERIAL_SECONDS)
     digest = metadata.get('sha256')
     if not isinstance(digest, str) or re.fullmatch('[0-9a-f]{64}', digest) is None:
         raise ValueError('asset sha256 must be a lowercase hexadecimal digest')
@@ -140,12 +142,12 @@ def validate_manifest(manifest):
             'frames': clip.get('source_frames'), 'sha256': clip.get('sha256')})
         if source_rate > rate:
             raise ValueError('manifest cannot downsample an asset')
-        first = _integer(clip.get('source_start'), 'source_start', 0, source_rate * 30 - 1)
+        first = _integer(clip.get('source_start'), 'source_start', 0, source_rate * MAX_MATERIAL_SECONDS - 1)
         count = clip['source_frames']
-        if first + count > source_rate * 30:
+        if first + count > source_rate * MAX_MATERIAL_SECONDS:
             raise ValueError('source interval exceeds maximum asset duration')
         at = _integer(clip.get('at_frame'), 'at_frame', 0, rate * MAX_SECONDS - 1)
-        output = _integer(clip.get('output_frames'), 'output_frames', 1, rate * 30)
+        output = _integer(clip.get('output_frames'), 'output_frames', 1, rate * MAX_MATERIAL_SECONDS)
         if output != round(count * rate / source_rate):
             raise ValueError('output_frames disagrees with source interval')
         if at + output > frames:

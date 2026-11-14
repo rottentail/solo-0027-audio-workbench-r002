@@ -4,8 +4,8 @@ import array
 import hashlib
 
 from .arrangement import validate_manifest
-from .processing import saturate
-from .waveio import Audio, decode
+from .formats import Audio, converted_frame, saturate
+from .waveio import decode
 
 
 class RenderCancelled(Exception):
@@ -43,26 +43,14 @@ def render_manifest(manifest, read_asset, cancelled=lambda: False, progress=lamb
             completed += output_frames
             checkpoint()
             continue
-        # Interpolate inside the trimmed source, clamping at its final frame,
-        # exactly as processing.clip(..., gain=1) followed by conform does.
+        # Interpolate inside the trimmed source, clamping at its final frame.
+        # The shared formats.converted_frame keeps this identical to
+        # processing.clip(..., gain=1) followed by formats.conform.
         for frame in range(output_frames):
             if frame % 2048 == 0:
                 checkpoint()
-            position = frame * source.rate / rate
-            first = min(int(position), count - 1)
-            second = min(first + 1, count - 1)
-            fraction = position - first
-            values = []
-            for channel in range(source.channels):
-                left = source.samples[(clip['source_start'] + first) * source.channels + channel]
-                right = source.samples[(clip['source_start'] + second) * source.channels + channel]
-                values.append(left + (right - left) * fraction)
-            if channels == 1:
-                converted = (saturate(sum(values) / len(values)),)
-            elif source.channels == 1:
-                converted = (saturate(values[0]), saturate(values[0]))
-            else:
-                converted = tuple(saturate(value) for value in values)
+            converted = converted_frame(source, frame, rate, channels,
+                                        base=clip['source_start'], count=count)
             offset = (clip['at_frame'] + frame) * channels
             for channel, sample in enumerate(converted):
                 sums[offset + channel] += sample * clip['gain']
